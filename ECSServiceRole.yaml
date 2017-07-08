@@ -1,0 +1,77 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates an ECS Service Role and ECS Task Definition Role. Built from a Production Pipeline.
+
+Parameters:
+  ProductSuiteName:
+    Type: String
+    Default: product-suite-name
+  ProductName:
+    Type: String
+    Default: product-name
+
+Resources:
+  ECSServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProductSuiteName}-${ProductName}-ECSService"
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: ["application-autoscaling.amazonaws.com","ecs.amazonaws.com"]
+          Action: ['sts:AssumeRole']
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  ECSTaskDefRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProductSuiteName}-${ProductName}-TaskDef"
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: ["ecs-tasks.amazonaws.com"]
+          Action: ['sts:AssumeRole']
+      Policies:
+      - PolicyName: !Sub "${ProductSuiteName}-${ProductName}-aws-service-access"
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Action:
+            - kms:Decrypt
+            Resource:
+              !ImportValue CMKARN
+            Effect: Allow
+          - Action:
+            - "ssm:DescribeParameters"
+            Resource: '*'
+            Effect: Allow
+          - Action:
+            - "ssm:GetParameters"
+            Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProductName}*"
+            Effect: Allow
+          - Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Resource:
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${ProductSuiteName}/${ProductName}"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${ProductSuiteName}/${ProductName}*"
+            Effect: Allow
+
+Outputs:
+  ECSServiceRole:
+    Value: !GetAtt [ ECSServiceRole, Arn ]
+    Export:
+      Name: !Sub "${ProductSuiteName}-${ProductName}-ECSServiceRoleArn"
+  ECSTaskDefRole:
+    Value: !GetAtt [ ECSTaskDefRole, Arn ]
+    Export:
+      Name: !Sub "${ProductSuiteName}-${ProductName}-ECSTaskDefRoleArn"

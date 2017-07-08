@@ -1,0 +1,8 @@
+{
+  "Parameters":{
+    "Cluster": "SharedECS",
+    "DesiredCount": "1",
+    "ProductSuiteName": "product-suite-name",
+    "ProductName": "product-name"
+  }
+}

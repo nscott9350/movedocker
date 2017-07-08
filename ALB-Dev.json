@@ -1,0 +1,8 @@
+{
+  "Parameters" : {
+    "Subnets": "subnet-4103df09,subnet-83332bd8",
+    "ProductSuiteName": "product-suite-name",
+    "ProductName": "product-name",
+    "VpcId": "vpc-a04941c6"
+  }
+}

@@ -1,0 +1,165 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an ECS Service, AutoScaling Group. Built from a Production Pipeline.
+
+Parameters:
+  DesiredCount:
+    Type: Number
+    Default: 1
+  Cluster:
+    Type: String
+    Default: SharedECS
+  ProductSuiteName:
+    Type: String
+    Default: product-suite-name
+  ProductName:
+    Type: String
+    Default: product-name
+
+Resources:
+  ECSLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "${ProductSuiteName}/${ProductName}"
+
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn: ECSLogGroup
+    Properties:
+      Cluster: !Ref Cluster
+      Role:
+        Fn::ImportValue: !Sub "${ProductSuiteName}-${ProductName}-ECSServiceRoleArn"
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !ImportValue ECSTaskDef
+      LoadBalancers:
+        - ContainerName: !Sub "${ProductSuiteName}-${ProductName}"
+          ContainerPort: 80
+          TargetGroupArn:
+            Fn::ImportValue: !Sub "${ProductSuiteName}-${ProductName}-TargetGroup"
+
+  ECSASGScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: 3
+      MinCapacity: 1
+      ResourceId: !Join ['', ["service/", !Ref Cluster, '/', !GetAtt [ 'ECSService', Name ]]]
+      RoleARN:
+        Fn::ImportValue: !Sub "${ProductSuiteName}-${ProductName}-ECSServiceRoleArn"
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  ECSASGScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: AStepPolicy
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref ECSASGScalableTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 60
+        MetricAggregationType: Average
+        StepAdjustments:
+        - MetricIntervalLowerBound: 0
+          ScalingAdjustment: 1
+
+  ECSScaleUp:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: ScaleUp
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref ECSASGScalableTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 60
+        MetricAggregationType: Average
+        StepAdjustments:
+          - MetricIntervalLowerBound: 0
+            ScalingAdjustment: 1
+
+  ECSScaleDown:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: ScaleDown
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref ECSASGScalableTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 60
+        MetricAggregationType: Average
+        StepAdjustments:
+          - MetricIntervalLowerBound: 0
+            ScalingAdjustment: -1
+
+  CPUAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '80'
+      AlarmDescription: Alarm if CPU too high or metric disappears indicating instance is down
+      Period: '900'
+      AlarmActions:
+      - Ref: ECSScaleUp
+      Namespace: AWS/ECS
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value: !Ref ECSASGScalableTarget
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: CPUUtilization
+
+  CPUAlarmLow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '50'
+      AlarmDescription: Alarm if CPU is low or metric disappears indicating instance is down
+      Period: '900'
+      AlarmActions:
+      - Ref: ECSScaleDown
+      Namespace: AWS/ECS
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value: !Ref ECSASGScalableTarget
+      ComparisonOperator: LessThanThreshold
+      MetricName: CPUUtilization
+
+  MemoryAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '80'
+      AlarmDescription: Alarm if Memory too high or metric disappears indicating instance is down
+      Period: '900'
+      AlarmActions:
+      - !Ref ECSScaleUp
+      Namespace: AWS/ECS
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value: !Ref ECSASGScalableTarget
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: MemoryUtilization
+
+  MemoryAlarmLow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '50'
+      AlarmDescription: Alarm if Memory is low or metric disappears indicating instance is down
+      Period: '900'
+      AlarmActions:
+      - !Ref ECSScaleDown
+      Namespace: AWS/ECS
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value: !Ref ECSASGScalableTarget
+      ComparisonOperator: LessThanThreshold
+      MetricName: MemoryUtilization
+
+Outputs:
+  ECSService:
+    Value: !Ref ECSService
+    Export:
+      Name: !Sub "${ProductSuiteName}-${ProductName}-ECSService"

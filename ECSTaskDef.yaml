@@ -1,0 +1,47 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates an ECS Task Definition. Built from a Production Pipeline.
+
+Parameters:
+  Tag:
+    Type: String
+
+  ProductSuiteName:
+    Type: String
+    Default: product-suite-name
+  ProductName:
+    Type: String
+    Default: product-name
+  Image:
+    Type: String
+    Default: "842851603113.dkr.ecr.us-east-1.amazonaws.com/product-suite-name-product-name:latest"
+
+Resources:
+  ECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${ProductSuiteName}-${ProductName}"
+      TaskRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProductSuiteName}-${ProductName}-TaskDef"
+      ContainerDefinitions:
+        - Name: !Sub "${ProductSuiteName}-${ProductName}"
+          Image: !Ref Image
+          DisableNetworking: false
+          Essential: true
+          Memory: 2048
+          PortMappings:
+            - ContainerPort: 80
+          ReadonlyRootFilesystem: false
+          Cpu: 0
+          Privileged: false
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub "${ProductSuiteName}/${ProductName}"
+              awslogs-region: us-east-1
+              awslogs-stream-prefix: !Sub "${Tag}"
+
+Outputs:
+  ECSTaskDefinition:
+    Value: !Ref ECSTaskDefinition
+    Export:
+      Name: !Sub "${AWS::StackName}"

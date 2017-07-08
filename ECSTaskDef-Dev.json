@@ -1,0 +1,7 @@
+{
+  "Parameters" : {
+    "Tag": "latest",
+    "ProductSuiteName": "product-suite-name",
+    "ProductName": "product-name"
+  }
+}
