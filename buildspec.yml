@@ -17,5 +17,5 @@ phases:
       - echo Pushing the Docker image...
       - docker push 842851603113.dkr.ecr.us-east-1.amazonaws.com/product-suite-name-product-name:latest
 artifacts:
-  files: *
+  files: **/*
   discard-paths: yes
