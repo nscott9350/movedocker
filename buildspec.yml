@@ -11,7 +11,7 @@ phases:
       - echo Build started on `date`
       - echo Building the Docker image...
       - docker build -t product-suite-name-product-name .
-      - docker tag product-suite-name-product-name:latest 842851603113.dkr.ecr.us-east-1.amazonaws.com/product-suite-name-product-name:${TAG}
+      - docker tag product-suite-name-product-name:${TAG} 842851603113.dkr.ecr.us-east-1.amazonaws.com/product-suite-name-product-name:${TAG}
   post_build:
     commands:
       - echo Build completed on `date`
