@@ -5,17 +5,19 @@ phases:
     commands:
       - echo Logging in to Amazon ECR...
       - $(aws ecr get-login --region $AWS_DEFAULT_REGION)
+      - TAG="$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | head -c 8)"
   build:
     commands:
       - echo Build started on `date`
       - echo Building the Docker image...
       - docker build -t product-suite-name-product-name .
-      - docker tag product-suite-name-product-name:latest 842851603113.dkr.ecr.us-east-1.amazonaws.com/product-suite-name-product-name:latest
+      - docker tag product-suite-name-product-name:latest 842851603113.dkr.ecr.us-east-1.amazonaws.com/product-suite-name-product-name:${TAG}
   post_build:
     commands:
       - echo Build completed on `date`
       - echo Pushing the Docker image...
-      - docker push 842851603113.dkr.ecr.us-east-1.amazonaws.com/product-suite-name-product-name:latest
+      - docker push 842851603113.dkr.ecr.us-east-1.amazonaws.com/product-suite-name-product-name:${TAG}
+      - printf '{"tag":"%s"}' $TAG > build.json
 artifacts:
   files: '**/*'
   discard-paths: yes

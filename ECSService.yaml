@@ -1,8 +1,10 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Create an ECS Service, AutoScaling Group. Built from a Production Pipeline.
-
 Parameters:
+  Tag:
+    Type: String
+    Default: latest
   DesiredCount:
     Type: Number
     Default: 1
@@ -15,13 +17,36 @@ Parameters:
   ProductName:
     Type: String
     Default: product-name
-
+  SharedServicesAccount:
+    Type: String
+    Default: "842851603113"
 Resources:
+  ECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${ProductSuiteName}-${ProductName}"
+      TaskRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProductSuiteName}-${ProductName}-TaskDef"
+      ContainerDefinitions:
+        - Name: !Sub "${ProductSuiteName}-${ProductName}"
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ProductSuiteName}-${ProductName}:${Tag}
+          DisableNetworking: false
+          Essential: true
+          Memory: 2048
+          PortMappings:
+            - ContainerPort: 80
+          ReadonlyRootFilesystem: false
+          Cpu: 0
+          Privileged: false
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub "${ProductSuiteName}/${ProductName}"
+              awslogs-region: us-east-1
+              awslogs-stream-prefix: !Sub "${Tag}"
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "${ProductSuiteName}/${ProductName}"
-
   ECSService:
     Type: AWS::ECS::Service
     DependsOn: ECSLogGroup
@@ -30,13 +55,12 @@ Resources:
       Role:
         Fn::ImportValue: !Sub "${ProductSuiteName}-${ProductName}-ECSServiceRoleArn"
       DesiredCount: !Ref DesiredCount
-      TaskDefinition: !ImportValue ECSTaskDef
+      TaskDefinition: !Ref ECSTaskDefinition
       LoadBalancers:
         - ContainerName: !Sub "${ProductSuiteName}-${ProductName}"
           ContainerPort: 80
           TargetGroupArn:
             Fn::ImportValue: !Sub "${ProductSuiteName}-${ProductName}-TargetGroup"
-
   ECSASGScalableTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     Properties:
@@ -47,7 +71,6 @@ Resources:
         Fn::ImportValue: !Sub "${ProductSuiteName}-${ProductName}-ECSServiceRoleArn"
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
-
   ECSASGScalingPolicy:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
@@ -61,7 +84,6 @@ Resources:
         StepAdjustments:
         - MetricIntervalLowerBound: 0
           ScalingAdjustment: 1
-
   ECSScaleUp:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
@@ -75,7 +97,6 @@ Resources:
         StepAdjustments:
           - MetricIntervalLowerBound: 0
             ScalingAdjustment: 1
-
   ECSScaleDown:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
@@ -89,7 +110,6 @@ Resources:
         StepAdjustments:
           - MetricIntervalLowerBound: 0
             ScalingAdjustment: -1
-
   CPUAlarmHigh:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -106,7 +126,6 @@ Resources:
         Value: !Ref ECSASGScalableTarget
       ComparisonOperator: GreaterThanThreshold
       MetricName: CPUUtilization
-
   CPUAlarmLow:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -123,7 +142,6 @@ Resources:
         Value: !Ref ECSASGScalableTarget
       ComparisonOperator: LessThanThreshold
       MetricName: CPUUtilization
-
   MemoryAlarmHigh:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -140,7 +158,6 @@ Resources:
         Value: !Ref ECSASGScalableTarget
       ComparisonOperator: GreaterThanThreshold
       MetricName: MemoryUtilization
-
   MemoryAlarmLow:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -157,9 +174,12 @@ Resources:
         Value: !Ref ECSASGScalableTarget
       ComparisonOperator: LessThanThreshold
       MetricName: MemoryUtilization
-
 Outputs:
   ECSService:
     Value: !Ref ECSService
     Export:
       Name: !Sub "${ProductSuiteName}-${ProductName}-ECSService"
+  ECSTaskDefinition:
+    Value: !Ref ECSTaskDefinition
+    Export:
+      Name: !Sub "${AWS::StackName}"
