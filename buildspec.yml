@@ -18,6 +18,7 @@ phases:
       - echo Pushing the Docker image...
       - docker push 842851603113.dkr.ecr.us-east-1.amazonaws.com/product-suite-name-product-name:${TAG}
       - printf '{"tag":"%s"}' $TAG > build.json
+      - echo $TAG
 artifacts:
   files: '**/*'
   discard-paths: yes
